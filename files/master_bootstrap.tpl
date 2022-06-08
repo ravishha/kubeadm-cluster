@@ -46,7 +46,7 @@ echo "Instance IP is $ec2_instance_ip"
 
 kube_cert_path="/etc/kubernetes/pki"
 
-ec2_instance_name=$(curl -s http://169.254.169.254/latest/meta-data/local-hostname | sed 's\.corp.hmrc.gov.uk\\g')
+ec2_instance_name=$(curl -s http://169.254.169.254/latest/meta-data/local-hostname | sed 's\.myorg.co.uk\\g')
 
 echo "Instance Name is $ec2_instance_name"
 
