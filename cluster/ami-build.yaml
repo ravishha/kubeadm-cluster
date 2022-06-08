@@ -1,0 +1,13 @@
+---
+- hosts: default
+  become: true
+  gather_facts: yes
+  roles:
+    - name: runtime
+      tags: runtime
+    - name: install_binaries
+      tags: install_binaries
+    - name: install_etcd
+      tags: install_etcd
+    - name: cri-config
+      tags: cri-config

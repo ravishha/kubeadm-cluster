@@ -1,0 +1,100 @@
+---
+- name: Copy kubeconfig from init master to local
+  become: true
+  fetch:
+    src: "/etc/kubernetes/admin.conf"
+    dest: "./admin.conf"
+    flat: yes
+  delegate_to: "{{ groups['master'][0] }}"
+
+- name: Copy kubeconfig from local to additional master
+  become: true
+  copy:
+    src: "./admin.conf"
+    dest: "/etc/kubernetes/admin.conf"
+
+- name: Check if there is a master node that is already initiated
+  become: yes
+  shell: |
+     kubectl --kubeconfig /etc/kubernetes/admin.conf get componentstatuses | grep controller-manager | awk '{print $2}'
+  register: kube_init_status
+
+- name: Create certs directory
+  become: true
+  file:
+    path: "/etc/kubernetes/{{ item }}"
+    state: directory
+  with_items:
+    - "pki"
+    - "pki/etcd"
+
+- name: Create Kubernetes certs directory
+  file:
+    path: "{{ item }}"
+    state: directory
+  with_items:
+    - "/etc/kubernetes/pki"
+    - "/etc/kubernetes/pki/etcd"
+
+- name: Copy External ETCD Certs to K8S Master
+  copy:
+    src: "{{ ansible_home }}/files/etcdcerts/ca.{{ item }}"
+    dest: "/etc/kubernetes/pki/etcd/ca.{{ item }}"
+    mode: 0755
+  with_items:
+    - key
+    - crt
+
+- name: Copy External ETCD Client Certs to K8S Master
+  copy:
+    src: "{{ ansible_home }}/files/etcdcerts/etcd-client.{{ item }}"
+    dest: "/etc/kubernetes/pki/apiserver-etcd-client.{{ item }}"
+    mode: 0755
+  with_items:
+    - key
+    - crt
+
+- name: Copy k8s CA, Front Proxy CA and client Certs to K8S Master
+  copy:
+    src: "{{ ansible_home }}/files/kubecerts/{{ item }}.key"
+    dest: "/etc/kubernetes/pki/{{ item }}.key"
+    mode: 0755
+  with_items:
+    - ca
+    - front-proxy-ca
+    - front-proxy-client
+
+- name: Copy k8s Front Proxy CA and Client Certs to K8S Master
+  copy:
+    src: "{{ ansible_home }}/files/kubecerts/{{ item }}.crt"
+    dest: "/etc/kubernetes/pki/{{ item }}.crt"
+    mode: 0755
+  with_items:
+    - ca
+    - front-proxy-ca
+    - front-proxy-client
+
+- name: Copy k8s Client Key Pair to K8S Master
+  copy:
+    src: "{{ ansible_home }}/files/kubecerts/{{ item }}"
+    dest: "/etc/kubernetes/pki/{{ item }}"
+    mode: 0755
+  with_items:
+    - sa.key
+    - sa.pub
+
+  
+- block:
+  - name: Fetch the join command
+    shell: kubeadm token create --print-join-command
+    register: master_join_command
+
+  - name: Upload the Cluster certs
+    shell: kubeadm init phase upload-certs --upload-certs
+    register: certs
+
+  - name: "Join Additional Master Nodes to the Cluster"
+    shell: |
+      {{ master_join_command.stdout }} --control-plane --node-name "master-{{ ansible_default_ipv4['address'] }}"
+  check_mode: no
+  when: kube_init_status.stdout == "Healthy"

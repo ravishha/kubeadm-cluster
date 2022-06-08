@@ -1,0 +1,51 @@
+---
+- name: Pull ETCD v3.5.4 Binaries from Artifactory
+  get_url:
+    url: "{{ etcd_repo }}/etcd-v3.5.4.tar.gz"
+    dest: "/usr/local/bin/"
+    validate_certs: false
+
+- name: Unpack the ETCD Components
+  become: yes
+  unarchive:
+    src: "/usr/local/bin/etcd-v3.5.4.tar.gz"
+    dest: "/usr/local/bin/"
+    remote_src: yes
+
+- name: Move the unpacked binaries to the path
+  become: yes
+  copy:
+    src: "/usr/local/bin/etcd-v3.5.4-linux-amd64/{{ item }}"
+    dest: "/usr/local/bin/"
+    mode: 0755
+    remote_src: yes
+  with_items:
+    - "etcd"
+    - "etcdctl"
+    - "etcdutl"
+
+- name: Create ETCD config directory
+  file:
+    path: "{{ item }}"
+    state: directory
+  with_items:
+    - "/var/lib/etcd"
+
+- name: Create a group with gid 10000 when not available
+  group:
+    name: etcd
+    gid: 10000
+
+- name: Create a user with uid 10000 and group etcd when not available
+  user:
+     name: "etcd"
+     uid: 10000
+     group: "etcd"
+     home: "/var/lib/etcd"
+     shell: "/bin/false"
+
+- name: Change file ownership, group and permissions
+  file:
+    path: "/var/lib/etcd"
+    owner: 10000
+    group: 10000

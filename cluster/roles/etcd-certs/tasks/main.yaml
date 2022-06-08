@@ -1,0 +1,108 @@
+---
+- name: Check if the ETCD certs are already present
+  stat: 
+      path:
+        "/{{ ansible_home }}/files/etcdcerts/ca.crt"
+  register: etcd_ca_present
+
+- name: Generate Certs
+  block:
+  - name: Create ETCD certs directory
+    file:
+      path: "{{ etcd_certs_path }}"
+      state: directory
+    delegate_to: localhost
+
+  - name: Generate an CA key for ETCD Cluster
+    openssl_privatekey:
+      path: "{{ etcd_certs_path }}/ca.key"
+      size: "{{ key_size }}"
+      type: "{{ key_type }}"
+      mode: 0755
+    delegate_to: localhost
+
+  - name: Generate an CA key for ETCD Members
+    openssl_privatekey:
+      path: "{{ etcd_certs_path }}/etcd-{{ item }}.key"
+      size: "{{ key_size }}"
+      type: "{{ key_type }}"
+      mode: 0755
+    with_items: 
+      - "{{ groups['etcd'] }}"
+      - "client"
+    delegate_to: localhost
+
+  - name: Generate an OpenSSL Certificate Signing Request for the ETCD CA
+    openssl_csr:
+       path: "{{ etcd_certs_path }}/ca.csr"
+       privatekey_path: "{{ etcd_certs_path }}/ca.key"
+       basic_constraints: "CA:TRUE"
+       organization_name: "{{ organization_name }}"
+       email_address: "{{ email_address }}"
+       country_name: "{{ country_name }}"
+       common_name: "etcd-ca"
+    delegate_to: localhost
+    ignore_errors: "{{ ansible_check_mode }}"
+
+  - name: Generate a Self Signed CA certificate
+    openssl_certificate:
+      path: "{{ etcd_certs_path }}/ca.crt"
+      privatekey_path: "{{ etcd_certs_path }}/ca.key"
+      csr_path: "{{ etcd_certs_path }}/ca.csr"
+      provider: selfsigned
+    delegate_to: localhost
+    ignore_errors: "{{ ansible_check_mode }}"
+
+  - name: Generate a CSR for each ETCD nodes
+    openssl_csr:
+       path: "{{ etcd_certs_path }}/etcd-{{ item }}.csr"
+       privatekey_path: "{{ etcd_certs_path }}/etcd-{{ item }}.key"
+       organization_name: "{{ organization_name }}"
+       email_address: "{{ email_address }}"
+       country_name: "{{ country_name }}"
+       common_name: "{{ item }}"
+       subject_alt_name:
+         - "IP:{{ item }}"
+         - "IP:127.0.0.1"
+         - "IP:0.0.0.0"
+         - "IP:::1"
+    with_items: "{{ groups['etcd'] }}"
+    delegate_to: localhost
+    ignore_errors: "{{ ansible_check_mode }}"
+
+  - name: Generate a Self Signed OpenSSL certificate
+    openssl_certificate:
+      path: "{{ etcd_certs_path }}/etcd-{{ item }}.crt"
+      privatekey_path: "{{ etcd_certs_path }}/etcd-{{ item }}.key"
+      ownca_path: "{{ etcd_certs_path }}/ca.crt"
+      csr_path: "{{ etcd_certs_path }}/etcd-{{ item }}.csr"
+      ownca_privatekey_path: "{{ etcd_certs_path }}/ca.key"
+      provider: ownca
+    with_items: "{{ groups['etcd'] }}"
+    delegate_to: localhost
+    ignore_errors: "{{ ansible_check_mode }}"
+
+  - name: Generate an OpenSSL Certificate Signing Request for the ETCD Clients
+    openssl_csr:
+       path: "{{ etcd_certs_path }}/etcd-client.csr"
+       privatekey_path: "{{ etcd_certs_path }}/etcd-client.key"
+       organization_name: "{{ organization_name }}"
+       email_address: "{{ email_address }}"
+       country_name: "{{ country_name }}"
+       common_name: "etcd-client"
+    delegate_to: localhost
+    ignore_errors: "{{ ansible_check_mode }}"
+
+  - name: Generate CA signed client certificate
+    openssl_certificate:
+      path: "{{ etcd_certs_path }}/etcd-client.crt"
+      privatekey_path: "{{ etcd_certs_path }}/etcd-client.key"
+      csr_path: "{{ etcd_certs_path }}/etcd-client.csr"
+      ownca_path: "{{ etcd_certs_path }}/ca.crt"
+      ownca_privatekey_path: "{{ etcd_certs_path }}/ca.key"
+      provider: ownca
+    with_items: "{{ groups['etcd'] }}"
+    delegate_to: localhost
+    ignore_errors: "{{ ansible_check_mode }}"
+  when: etcd_ca_present.stat.exists != false
+  tags: etcd-certs

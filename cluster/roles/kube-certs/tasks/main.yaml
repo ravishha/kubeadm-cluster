@@ -1,0 +1,103 @@
+---
+- name: Check if the Kubernetes certs are already present
+  stat: 
+      path:
+        "/{{ ansible_home }}/files/kubecerts/ca.crt"
+  register: kube_ca_present
+
+- name: Generate Certs
+  block:
+  - name: Generate an OpenSSL private key for Kubernetes Cluster
+    become: yes
+    openssl_privatekey:
+      path: "{{ kube_certs_path }}/{{ item }}.key"
+      size: "{{ key_size }}"
+      type: "{{ key_type }}"
+      mode: 0755
+    with_items:
+      - ca
+      - sa
+      - front-proxy-ca
+      - front-proxy-client
+    delegate_to: localhost
+  
+  - name: Generate an OpenSSL public key in PEM format
+    become: yes
+    openssl_publickey:
+      path: "{{ kube_certs_path }}/sa.pub"
+      privatekey_path: "{{ kube_certs_path }}/sa.key"
+      mode: 0755
+    delegate_to: localhost
+
+  - name: Generate an OpenSSL CSR for CA Cert
+    become: yes
+    openssl_csr:
+      path: "{{ kube_certs_path }}/ca.csr"
+      privatekey_path: "{{ kube_certs_path }}/ca.key"
+      basic_constraints: "CA:TRUE"
+      organization_name: "{{ organization_name }}"
+      email_address: "{{ email_address }}"
+      country_name: "{{ country_name }}"
+      common_name: "kubernetes"
+      subject_alt_name: "DNS:{{ kube_api }}"
+    delegate_to: localhost
+    ignore_errors: "{{ ansible_check_mode }}"
+
+  - name: Generate a CA Cert
+    become: yes
+    openssl_certificate:
+      path: "{{ kube_certs_path }}/ca.crt"
+      privatekey_path: "{{ kube_certs_path }}/ca.key"
+      csr_path: "{{ kube_certs_path }}/ca.csr"
+      provider: selfsigned
+    delegate_to: localhost
+    ignore_errors: "{{ ansible_check_mode }}"
+
+  - name: Generate an OpenSSL CSR for Front Proxy CA Cert
+    become: yes
+    openssl_csr:
+      path: "{{ kube_certs_path }}/front-proxy-ca.csr"
+      privatekey_path: "{{ kube_certs_path }}/front-proxy-ca.key"
+      basic_constraints: "CA:TRUE"
+      organization_name: "{{ organization_name }}"
+      email_address: "{{ email_address }}"
+      country_name: "{{ country_name }}"
+      common_name: "front-proxy-ca"
+    delegate_to: localhost
+    ignore_errors: "{{ ansible_check_mode }}"
+
+  - name: Generate an OpenSSL CSR for Front Proxy Client Cert
+    become: yes
+    openssl_csr:
+      path: "{{ kube_certs_path }}/front-proxy-client.csr"
+      privatekey_path: "{{ kube_certs_path }}/front-proxy-client.key"
+      organization_name: "{{ organization_name }}"
+      email_address: "{{ email_address }}"
+      country_name: "{{ country_name }}"
+      common_name: "front-proxy-client"
+    delegate_to: localhost
+    ignore_errors: "{{ ansible_check_mode }}"
+
+  - name: Generate a Self Signed Front Proxy CA cert
+    become: yes
+    openssl_certificate:
+      path: "{{ kube_certs_path }}/front-proxy-ca.crt"
+      privatekey_path: "{{ kube_certs_path }}/front-proxy-ca.key"
+      csr_path: "{{ kube_certs_path }}/front-proxy-ca.csr"
+      provider: selfsigned
+    delegate_to: localhost
+    ignore_errors: "{{ ansible_check_mode }}"
+
+  - name: Generate a Self Signed Front Proxy Client cert signed by Front Proxy CA
+    openssl_certificate:
+      path: "{{ kube_certs_path }}/front-proxy-client.crt"
+      privatekey_path: "{{ kube_certs_path }}/front-proxy-client.key"
+      csr_path: "{{ kube_certs_path }}/front-proxy-client.csr"
+      ownca_path: "{{ kube_certs_path }}/front-proxy-ca.crt"
+      ownca_privatekey_path: "{{ kube_certs_path }}/front-proxy-ca.key"
+      provider: ownca
+    with_items: "{{ groups['etcd'] }}"
+    delegate_to: localhost
+    ignore_errors: "{{ ansible_check_mode }}"
+  when: kube_ca_present.stat.exists != false
+  tags: kube-certs

@@ -1,0 +1,2 @@
+---
+etcd_repo: "https://artifactory.t.cit.corp.hmrc.gov.uk/artifactory/cdos-docker/etcd"

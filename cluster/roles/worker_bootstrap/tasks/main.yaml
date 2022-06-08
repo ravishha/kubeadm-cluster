@@ -1,0 +1,41 @@
+---
+- name: Init Pre-Check
+  stat: 
+    path:
+      "/etc/kubernetes/pki/ca.crt"
+  register: kube_worker_ca
+
+- debug:
+   var: kube_worker_ca.stat.exists
+
+- block:
+  - debug:
+     var: kube_worker_ca.stat.exists
+
+  - name: Copy kubeconfig from local to additional master
+    become: true
+    copy:
+      src: "./admin.conf"
+      dest: "/etc/kubernetes/admin.conf"
+
+  - name: Check if the controlplane node is healthy
+    become: yes
+    shell: |
+        kubectl get cs --kubeconfig /etc/kubernetes/admin.conf 2>&1 | grep -iv Warn | grep controller-manager | awk '{print $2}'
+    register: kube_master_status
+  
+  - block:
+    - name: Fetch the join command
+      shell: kubeadm token create --print-join-command
+      register: worker_join_command
+
+    - name: Upload the Cluster certs
+      shell: kubeadm init phase upload-certs --upload-certs
+  
+    - name: "Join Worker Nodes to the Cluster"
+      shell: |
+          {{ worker_join_command.stdout }} --node-name "worker-{{ ansible_default_ipv4['address'] }}"
+      check_mode: no
+    when: kube_master_status.stdout == "Healthy"
+
+  when: kube_worker_ca.stat.exists == false

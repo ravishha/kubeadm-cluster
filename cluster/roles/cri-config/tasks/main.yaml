@@ -1,0 +1,82 @@
+- name: Download Containerd Tools
+  get_url:
+    url: "https://{{ private_yum_repo }}/cri-containerd-1.6.1-linux-amd64.tar.gz"
+    dest: /tmp
+
+- name: Unarchive
+  unarchive: 
+    src: "/tmp/cri-containerd-1.6.1-linux-amd64.tar.gz"
+    dest: "/usr/local/bin/"
+    mode: 0755
+    remote_src: yes
+
+- name: Copy containerd.service file
+  copy:
+    src: "../files/containerd.service"
+    dest: "/etc/systemd/system/containerd.service"
+
+- name: Start the containerd daemon
+  shell: |
+    systemctl daemon-reload
+    systemctl start containerd
+    systemctl enable containerd
+  
+- name: Check if containerd directory exists
+  stat:
+    path: /etc/containerd
+  register: conf_dir
+
+- name: Create containerd conf directory if not exists
+  file:
+    path: /etc/containerd
+    state: directory
+  when: conf_dir.stat.exists == false
+
+- name: Create containerd conf directory if not exists
+  copy:
+    src: ../crictl.yaml
+    dest: /etc/crictl.yaml
+  
+- name: Containerd configuration
+  copy:
+    src: ../config.toml
+    dest: /etc/containerd/config.toml
+
+- name: Start the containerd daemon
+  shell: |
+    systemctl daemon-reload
+    systemctl restart containerd
+    systemctl restart kubelet
+    systemctl enable kubelet
+
+- name: Kubelet configuraion
+  copy:
+    src: ../10-kubeadm.conf
+    dest: /usr/lib/systemd/system/kubelet.service.d/10-kubeadm.conf
+
+- name: Start the containerd daemon
+  systemd:
+    state: started
+    daemon_reload: yes
+    name: "kubelet"
+
+- name: Pull Kubeadm Images
+  shell: |
+    /usr/local/bin/ctr image pull --skip-verify --plain-http {{ item }}:latest
+  with_items:
+    - "{{ private_repo }}/cdos-docker/kube-apiserver"
+    - "{{ private_repo }}/cdos-docker/kube-apiserver"
+    - "{{ private_repo }}/cdos-docker/kube-proxy"
+    - "{{ private_repo }}/cdos-docker/kube-controller-manager"
+    - "{{ private_repo }}/cdos-docker/kube-scheduler"
+    - "{{ private_repo }}/cdos-docker/etcd"
+    - "{{ private_repo }}/cdos-docker/coredns/coredns"
+    
+- name: Pull Calico Images
+  shell: |
+    /usr/local/bin/ctr image pull --skip-verify --plain-http {{ item }}:v3.22.0
+  with_items:
+    - "{{ private_repo }}/cdos-docker/calico/cni"
+    - "{{ private_repo }}/cdos-docker/calico/pod2daemon-flexvol"
+    - "{{ private_repo }}/cdos-docker/calico/node"
+    - "{{ private_repo }}/cdos-docker/calico/kube-controllers"

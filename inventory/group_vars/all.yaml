@@ -1,0 +1,38 @@
+---
+ansible_home: "/home/u.7845840/git/kubernetes-cluster"
+kube_version: "v1.19.2"
+token: "b0f7b8.8d1767876297d85c"
+bind_port: "6443"
+
+# Any other additional opts you want to add..
+service_cidr: "10.96.0.0/12"
+pod_cidr: "10.244.0.0/16"
+
+# Network implementation('flannel', 'calico', 'canal')
+network: "calico"
+
+# Container Runtime
+container_runtime: "containerd"
+hosted_zone: "myorg.co.uk"
+kube_api: "cds-kube.{{ hosted_zone }}"
+etcd_api: "cds-etcd.{{ hosted_zone }}"
+kube_api_additional_DNS: ""
+kube_ver: "1.23.4"
+kubeadmin_config: "/etc/kubernetes/admin.conf"
+image_repo: ""
+
+key_size: 4096
+passphrase: # Set if you want passphrase
+key_type: RSA
+country_name: UK
+email_address: admin@myorg.co.uk
+organization_name: myorg
+
+# Etcd Certs
+etcd_cert_file_location:  "/etc/kubernetes/pki/etcd/"
+etcd_ca_crt_file_location: "/etc/kubernetes/pki/etcd/"
+etcd_key_file_location: "/etc/kubernetes/pki/etcd/ca.crt"
+
+# EFS 
+efs_mount_dir: "/shared_data"
+efs_mount_id: ""

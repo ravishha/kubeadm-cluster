@@ -1,0 +1,19 @@
+- name: Calculate Swap
+  shell: free -m | grep Swap | awk '{print $2}'
+  register: swap_used
+  check_mode: no
+
+- debug: msg="{{swap_used.stdout}}"
+  check_mode: no 
+
+- name: Turn Off Swap For Session
+  shell: swapoff -a
+  when: (swap_used.stdout[0] | int) > 0
+
+- name: Disable swap permanently
+  replace:
+    path: /etc/fstab
+    regexp: '^(\s*)([^#\n]+\s+)(\w+\s+)swap(\s+.*)$'
+    replace: '#\1\2\3swap\4'
+    backup: yes
+  when: (swap_used.stdout[0] | int) > 0

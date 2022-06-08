@@ -1,0 +1,192 @@
+---
+- name: Ensure etcd dir exists
+  become: true
+  become_method: sudo
+  file:
+    dest: "/etcd/etcd"
+    mode: 0755
+    recurse: yes
+
+- name: Block script to copy the ETCD Certs over to the nodes
+  become: true
+  block:
+  - name: Ensure etcd dir exists
+    file:
+      path: "{{ item }}"
+      state: directory
+      mode: 0755
+    with_items:
+      - "/etc/etcd"
+      - "/etc/etcd/pki"
+      - "{{ efs_mount_dir }}"
+
+  - name: Copy ETCD CA Cert and Key
+    copy:
+        src: "{{ ansible_home }}/files/etcdcerts/ca.{{ item }}"
+        dest: "/etc/etcd/pki/ca.{{ item }}"
+        mode: 0644
+    with_items:
+      - crt
+      - key
+
+  - name: Copy ETCD Server Certs of each node in the ETCD Cluster
+    copy:
+        src: "{{ ansible_home }}/files/etcdcerts/etcd-{{ item }}.crt"
+        dest: /etc/etcd/pki/
+        mode: 0755
+    with_items:
+       - "{{ groups['etcd'] }}"
+
+  - name: Copy ETCD Server Keys of each node in the ETCD Cluster
+    copy:
+        src: "{{ ansible_home }}/files/etcdcerts/etcd-{{ item }}.key"
+        dest: /etc/etcd/pki/
+        mode: 0755
+    with_items:
+       - "{{ groups['etcd'] }}"
+
+  - name: Ensure etcd dir exists
+    file:
+      path: "/shared_data/etcd"
+      state: directory
+      mode: 0755
+      
+  when: inventory_hostname in groups['etcd']
+  ignore_errors: "{{ ansible_check_mode }}"
+
+- name: Block script to copy the ETCD Certs over to the NFS
+  become: true
+  block:
+  - name: Ensure etcd dir exists
+    file:
+      path: "{{ item }}"
+      state: directory
+      mode: 0755
+    with_items:
+      - "{{ efs_mount_dir }}"
+
+  - name: Ensure EFS volume is mounted.
+    mount:
+      name: "{{ efs_mount_dir }}"
+      src: "{{ efs_mount_id }}:/"
+      fstype: nfs4
+      opts: nfsvers=4.1
+      state: mounted
+
+  - name: Ensure etcd dir exists
+    file:
+      path: "/shared_data/etcd"
+      state: directory
+      mode: 0755
+
+  - name: Copy ETCD Server Certs and Keys to the NFS Shared Directory
+    copy:
+        src: "{{ ansible_home }}/files/etcdcerts/{{ item }}"
+        dest: "/shared_data/etcd/"
+        mode: 0755
+    with_items:
+      - ca.crt
+      - ca.key
+      - etcd-client.crt
+      - etcd-client.key
+
+  - name: Copy ETCD Server Certs and Keys to the NFS Shared Directory
+    copy:
+        src: "{{ ansible_home }}/files/etcdcerts/etcd-{{ item }}.crt"
+        dest: "/shared_data/etcd/"
+        mode: 0755
+    with_items:
+      - "{{ groups['etcd'] }}"
+
+  - name: Copy ETCD Server Certs and Keys to the NFS Shared Directory
+    copy:
+        src: "{{ ansible_home }}/files/etcdcerts/etcd-{{ item }}.key"
+        dest: "/shared_data/etcd/"
+        mode: 0755
+    with_items:
+      - "{{ groups['etcd'] }}"
+  when: inventory_hostname == groups.etcd[0]
+  ignore_errors: "{{ ansible_check_mode }}"
+
+- name: Run a block script to gather ETCD ASG details
+  become: TRUE
+  block:
+  - name: Copy ASG Capture script to the ETCD node
+    copy:
+        src: "{{ ansible_home }}/files/asg-details.sh"
+        dest: /tmp/asg-details.sh
+        mode: 0755
+
+  - name: Gather the details of instances in the ETCD ASG
+    shell: |
+       bash /tmp/asg-details.sh
+
+  - name: Copy instance_details to group_vars file
+    fetch:
+      src: "/tmp/instance.details"
+      dest: "{{ ansible_home }}/inventory/group_vars/etcd.yaml"
+      flat: yes
+  when: inventory_hostname == groups.etcd[0]
+
+- name: Include group_vars of ETCD nodes
+  include_vars:
+    file: ../inventory/group_vars/etcd.yaml
+  when: inventory_hostname in groups['etcd']
+
+- name: Run a block script to initialise ETCD Cluster
+  become: TRUE
+  block:
+  - name: Template the etcd configuration file
+    debug:
+      msg: "{{ lookup('template', './etcd-conf.j2') }}"
+  
+  - name: Copy file with owner and permissions
+    become: true
+    copy:
+        src: "{{ ansible_home }}/files/etcd.service"
+        dest: /etc/systemd/system/etcd.service
+        mode: 0644
+
+  - name: Ensures etcd dir exists
+    become: true
+    file:
+        path: /etc/etcd
+        state: directory
+
+  - name: Template the etcd configuration file
+    become: true
+    template:
+        src: etcd-conf.j2
+        dest: /etc/etcd/etcd.conf
+  
+  - name: Just force systemd to reread configs
+    become: true
+    systemd:
+      daemon_reload: yes
+
+  - name: Enable a ETCD
+    become: true
+    systemd:
+      name: etcd.service
+      state: started
+      enabled: yes
+
+  - name: Status of ETCD
+    become: true
+    shell: |
+       systemctl status etcd
+
+  - name: Status of ETCD
+    become: true
+    lineinfile: 
+      path: /root/.bashrc
+      state: present
+      line: "{{ item }}"
+    with_items:
+      - 'export ETCDCTL_CACERT="/etc/etcd/pki/ca.crt"'
+      - 'export ETCDCTL_CERT="/etc/etcd/pki/etcd-$(curl -s http://169.254.169.254/latest/meta-data/local-ipv4).crt"'
+      - 'export ETCDCTL_KEY="/etc/etcd/pki/etcd-$(curl -s http://169.254.169.254/latest/meta-data/local-ipv4).key"'
+      - 'export ETCDCTL_ENDPOINTS="https://$(curl -s http://169.254.169.254/latest/meta-data/local-ipv4):2379"'
+
+  when: inventory_hostname in groups['etcd']
+  ignore_errors: "{{ ansible_check_mode }}"

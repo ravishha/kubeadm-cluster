@@ -1,0 +1,89 @@
+---
+- name: "Inititate the cluster in the first master node {{ hostvars[groups['master'][0]]['ansible_eth0']['ipv4']['address'] }}"
+  block:
+  - name: Init Pre-Check
+    stat: 
+      path:
+        "/etc/kubernetes/pki/ca.key"
+    register: kubeadm_ca
+
+  - name: "Init cluster in the init master node"
+    include_tasks: init.yaml
+    when: kubeadm_ca.stat.exists == false
+
+  - name: Copy kubeconfig to local file
+    become: true
+    fetch:
+      src: /etc/kubernetes/admin.conf
+      dest: "~/.kube/config"
+      flat: yes
+  when: inventory_hostname == groups.master[0]
+
+- name: Block to Join Additional Control Plane Nodes
+  block: 
+  - name: Join Pre-Check
+    stat: 
+      path:
+        "/etc/kubernetes/pki/ca.key"
+    register: join_check
+
+  - name: Join additional masters if available
+    include_role: 
+      name: join_masters
+    when: ( join_check.stat.exists == false )
+  when: ( inventory_hostname in groups["master"] ) and ( inventory_hostname != groups["master"][0] )
+  ignore_errors: "{{ ansible_check_mode }}"
+
+- name: Block script to copy the Kubernetes Certs over to the NFS
+  become: true
+  block:
+  - name: Ensure NFS mount dir exists
+    file:
+      path: "{{ item }}"
+      state: directory
+      mode: 0755
+    with_items:
+      - "{{ efs_mount_dir }}"
+
+  - name: Ensure EFS volume is mounted
+    mount:
+      name: "{{ efs_mount_dir }}"
+      src: "{{ efs_mount_id }}:/"
+      fstype: nfs4
+      opts: nfsvers=4.1
+      state: mounted
+
+  - name: Ensure etcd dir exists
+    file:
+      path: "/shared_data/kubernetes"
+      state: directory
+      mode: 0755
+
+  - name: Copy Kubernetes Certs and Keys to the NFS Shared Directory
+    copy:
+        src: "{{ ansible_home }}/files/kubecerts/{{ item }}"
+        dest: "/shared_data/kubernetes/"
+        mode: 0755
+    with_items:
+      - ca.crt
+      - ca.key
+      - sa.key
+      - sa.pub
+      - front-proxy-client.crt
+      - front-proxy-client.key
+      - front-proxy-ca.crt
+      - front-proxy-ca.key
+
+  - name: Copy Kubernetes Certs and Keys to the NFS Shared Directory
+    copy:
+        src: "/etc/kubernetes/{{ item }}"
+        dest: "/shared_data/kubernetes/"
+        mode: 0755
+        remote_src: yes
+    with_items:
+      - "admin.conf"
+      - "pki/apiserver-etcd-client.crt"
+      - "pki/apiserver-etcd-client.key"
+  
+  when: inventory_hostname == groups.master[0]
+  ignore_errors: "{{ ansible_check_mode }}"

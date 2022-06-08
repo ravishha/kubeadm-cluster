@@ -1,0 +1,32 @@
+---
+- name: Install Requirements
+  package:
+    name: "{{ packages }}"
+    state: present
+    use: dnf
+
+- name: Pull Binaries from Artifactory
+  get_url:
+    url: "{{ private_yum_repo }}/{{ item }}"
+    dest: /tmp
+    validate_certs: false
+  with_items:
+    - kubeadm-1.23.4-0.x86_64.rpm
+    - kubectl-1.23.4-0.x86_64.rpm
+    - cri-tools-1.19.0-0.x86_64.rpm
+    - kubelet-1.23.4-0.x86_64.rpm
+    - kubernetes-cni-0.8.7-0.x86_64.rpm
+    - amazon-efs-utils-1.10-1.amzn2.noarch.rpm
+
+- name: Install kubernetes rpms
+  shell: |
+     rpm -ivh --nodigest --nofiledigest "/tmp/cri-tools-1.19.0-0.x86_64.rpm" "/tmp/kubectl-1.23.4-0.x86_64.rpm" "/tmp/kubelet-1.23.4-0.x86_64.rpm" "/tmp/kubernetes-cni-0.8.7-0.x86_64.rpm" "/tmp/kubeadm-1.23.4-0.x86_64.rpm"
+
+- name: Install efs-utils rpms
+  shell: |
+     rpm -ivh --nodigest --nofiledigest "/tmp/amazon-efs-utils-1.10-1.amzn2.noarch.rpm"
+
+- name: Enable And Start Kubelet
+  shell: |
+    systemctl enable kubelet.service
+    systemctl start kubelet

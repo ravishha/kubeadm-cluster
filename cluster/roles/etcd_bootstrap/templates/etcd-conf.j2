@@ -1,0 +1,18 @@
+ETCD_NAME="{{ inventory_hostname | regex_replace('\.', '-') | regex_replace('^', 'ip-') }}"
+ETCD_INITIAL_ADVERTISE_PEER_URLS="https://{{ inventory_hostname }}:2380"
+ETCD_LISTEN_PEER_URLS="https://{{ inventory_hostname }}:2380"
+ETCD_LISTEN_CLIENT_URLS="https://{{ inventory_hostname }}:2379,https://127.0.0.1:2379"
+ETCD_ADVERTISE_CLIENT_URLS="https://{{ inventory_hostname }}:2379"
+ETCD_DATA_DIR=/var/lib/etcd/data
+ETCD_WAL_DIR=/var/lib/etcd/wal
+ETCD_INITIAL_CLUSTER_TOKEN=cdos-etcd-cluster
+ETCD_INITIAL_CLUSTER="{{ hostvars[groups['etcd'][0]]['ansible_hostname'] }}=https://{{ hostvars[groups['etcd'][0]]['ansible_eth0']['ipv4']['address'] }}:2380,{{ hostvars[groups['etcd'][1]]['ansible_hostname'] }}=https://{{ hostvars[groups['etcd'][1]]['ansible_eth0']['ipv4']['address'] }}:2380,{{ hostvars[groups['etcd'][2]]['ansible_hostname'] }}=https://{{ hostvars[groups['etcd'][2]]['ansible_eth0']['ipv4']['address'] }}:2380"
+ETCD_LOG_LEVEL=debug
+GOMAXPROCS=2
+ETCD_INITIAL_CLUSTER_STATE=new
+ETCD_TRUSTED_CA_FILE="/etc/etcd/pki/ca.crt"
+ETCD_CERT_FILE="/etc/etcd/pki/etcd-{{ inventory_hostname }}.crt"
+ETCD_KEY_FILE="/etc/etcd/pki/etcd-{{ inventory_hostname }}.key"
+ETCD_PEER_TRUSTED_CA_FILE="/etc/etcd/pki/ca.crt"
+ETCD_PEER_CERT_FILE="/etc/etcd/pki/etcd-{{ inventory_hostname }}.crt"
+ETCD_PEER_KEY_FILE="/etc/etcd/pki/etcd-{{ inventory_hostname }}.key"

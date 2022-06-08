@@ -1,0 +1,3 @@
+#!/bin/bash
+
+ANSIBLE_STDOUT_CALLBACK=yaml ANSIBLE_FORCE_COLOR=1 PYTHONUNBUFFERED=1 ANSIBLE_PYTHON_INTERPRETER=/usr/bin/python3 ansible-playbook -v "$@"

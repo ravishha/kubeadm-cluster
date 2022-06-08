@@ -1,0 +1,158 @@
+---
+- hosts: all
+  become: true
+  gather_facts: true
+  tasks:
+    - name: Completely reset all the master nodes and destroy the cluster
+      become: yes
+      shell: |
+         kubeadm reset --force 
+      when: inventory_hostname in groups['master']
+      tags: master-destroy
+    
+    - name: Clean up all the existing certs in the nodes
+      become: yes
+      file:
+        path: "/etc/kubernetes/pki/{{ item }}"
+        state: absent
+      with_items:
+        - "apiserver-etcd-client.key"
+        - "apiserver-etcd-client.crt"
+        - "etcd/ca.crt"
+        - "etcd/ca.key"
+        - "sa.pub"
+        - "sa.key"
+        - "ca.crt"
+        - "ca.key"
+        - "front-proxy-ca.crt"
+        - "front-proxy-ca.key"
+        - "front-proxy-client.crt"
+        - "front-proxy-client.key"
+      when: inventory_hostname in groups['master']
+      tags: master-destroy
+
+    - name: Clean up all the existing certs in the nodes
+      become: yes
+      file:
+        path: "/shared_data/kubernetes/{{ item }}"
+        state: absent
+      with_items:
+        - "apiserver-etcd-client.key"
+        - "apiserver-etcd-client.crt"
+        - "etcd/ca.crt"
+        - "etcd/ca.key"
+        - "sa.pub"
+        - "sa.key"
+        - "ca.crt"
+        - "ca.key"
+        - "front-proxy-ca.crt"
+        - "front-proxy-ca.key"
+        - "front-proxy-client.crt"
+        - "front-proxy-client.key"
+      when: inventory_hostname in groups['master']
+      tags: master-destroy
+
+    - name: Clean up all the existing certs in the ETCD nodes
+      become: yes
+      file:
+        path: "/etc/etcd/pki/{{ item }}"
+        state: absent
+      with_items:
+        - "etcd-client.crt"
+        - "etcd-client.key"
+        - "ca.crt"
+        - "ca.key"
+      when: inventory_hostname in groups['etcd']
+      tags: etcd-destroy
+
+    - name: Clean up all the existing certs in the ETCD nodes
+      become: yes
+      file:
+        path: "/etc/etcd/pki/etcd-{{ item }}.crt"
+        state: absent
+      with_items:
+        - "{{ groups['etcd'] }}"
+      when: inventory_hostname in groups['etcd']
+      tags: etcd-destroy
+
+    - name: Clean up all the existing certs in the ETCD nodes
+      become: yes
+      file:
+        path: "/etc/etcd/pki/etcd-{{ item }}.key"
+        state: absent
+      with_items:
+        - "{{ groups['etcd'] }}"
+      when: inventory_hostname in groups['etcd']
+      tags: etcd-destroy
+
+    - name: Clean up all the existing certs in the ETCD Nodes
+      become: yes
+      file:
+        path: "/etc/etcd/pki/etcd-{{ item }}.csr"
+        state: absent
+      with_items:
+        - "{{ groups['etcd'] }}"
+      when: inventory_hostname in groups['etcd']
+      tags: etcd-destroy
+
+    - name: Clean up all the existing certs in the NFS Directory
+      become: yes
+      file:
+        path: "/shared_data/etcd/{{ item }}"
+        state: absent
+      with_items:
+        - "etcd-client.crt"
+        - "etcd-client.key"
+        - "ca.crt"
+        - "ca.key"
+      when: inventory_hostname in groups['etcd']
+      tags: etcd-destroy
+
+    - name: Clean up all the existing certs in the NFS Directory
+      become: yes
+      file:
+        path: "/shared_data/etcd/etcd-{{ item }}.crt"
+        state: absent
+      with_items:
+        - "{{ groups['etcd'] }}"
+      when: inventory_hostname in groups['etcd']
+      tags: etcd-destroy
+
+    - name: Clean up all the existing certs in the NFS Directory
+      become: yes
+      file:
+        path: "/shared_data/etcd/etcd-{{ item }}.key"
+        state: absent
+      with_items:
+        - "{{ groups['etcd'] }}"
+      when: inventory_hostname in groups['etcd']
+      tags: etcd-destroy
+
+    - name: Clean up the existing data
+      become: yes
+      systemd:
+         name: etcd
+         state: stopped
+
+    - name: Clean up the existing data directory
+      become: yes
+      file:
+        path: "/var/lib/etcd/data"
+        state: absent
+      when: inventory_hostname in groups['etcd']
+      tags: etcd-destroy
+
+    - name: Clean up all the existing wal directory
+      become: yes
+      file:
+        path: "/var/lib/etcd/wal"
+        state: absent
+      when: inventory_hostname in groups['etcd']
+      tags: etcd-destroy
+
+    - name: Completely reset all the worker nodes
+      become: yes
+      shell: |
+        kubeadm reset --force
+      when: inventory_hostname in groups['worker']
+      tags: worker-destroy

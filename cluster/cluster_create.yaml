@@ -1,0 +1,60 @@
+---
+- hosts: etcd
+  become: true
+  gather_facts: true
+  roles:
+    - name: wait_for_cxn
+    - name: cluster/roles/etcd-certs
+      vars:
+          etcd_certs_path: "{{ ansible_home }}/files/etcdcerts"
+      tags: etcd-certs
+  tags: etcd-certs
+
+- hosts: master
+  become: true
+  gather_facts: true
+  roles:
+    - name: wait_for_cxn
+    - name: cluster/roles/kube-certs
+      vars:
+        kube_certs_path: "{{ ansible_home }}/files/kubecerts"
+  tags: kube-certs
+
+- hosts: etcd
+  become: true
+  gather_facts: true
+  roles:
+    - name: wait_for_cxn
+    - name: swap
+      tags: swap
+    - name: runtime
+      tags: runtime
+    - name: etcd_bootstrap
+      tags: etcd_bootstrap
+  tags: etcd
+
+- hosts: master
+  become: true
+  gather_facts: true
+  roles:
+    - name: wait_for_cxn
+    - name: swap
+      tags: swap
+    - name: runtime
+      tags: runtime
+    - name: master_bootstrap
+      tags: master_bootstrap
+  tags: master
+
+- hosts: worker
+  become: true
+  gather_facts: true
+  roles:
+    - name: wait_for_cxn
+    - name: swap
+      tags: swap
+    - name: runtime
+      tags: runtime
+    - name: worker_bootstrap
+      tags: worker_bootstrap
+  tags: worker

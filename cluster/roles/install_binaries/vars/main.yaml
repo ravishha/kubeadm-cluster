@@ -1,0 +1,9 @@
+packages:
+  - socat
+  - conntrack
+  - iproute-tc
+  - runc
+  - stunnel
+  - nfs-utils
+
+artifactory_repo: https://artifactory.t.cit.corp.hmrc.gov.uk/artifactory/cdos-yum
