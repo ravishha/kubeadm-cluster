@@ -31,8 +31,8 @@ prompt = no
 
 [req_distinguished_name]
 countryName             = UK
-emailAddress     	= admin@hmrc.gov.uk 
-organizationName        = HMRC
+emailAddress     	= myorg@myorg.co.uk 
+organizationName        = MyOrg
 commonName              = etcd-ca
 EOF
 
