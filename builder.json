@@ -1,0 +1,40 @@
+{
+    "builders": [
+        {
+            "type": "amazon-ebs",
+            "profile": "hmrc",
+            "region": "eu-west-2",
+            "ami_name": "kdm-cluster-ami-4",
+            "source_ami": "ami-0c1d937ceab9e230b",
+            "instance_type": "t2.medium",
+            "ssh_username": "ec2-user",
+            "vpc_id": "vpc-0452fbf8d61e7812b",
+            "subnet_id": "subnet-0e139f4ac7b4782e4",
+            "security_group_id": "sg-090e3de4e8eca8890",
+            "user_data_file": "files/downgrade-security-for-build.sh",
+            "communicator": "ssh",
+            "ssh_keypair_name": "kdm-cluster-key",
+            "ssh_private_key_file": "/home/u.7845840/kubeadm.pem",
+            "tags": {
+                "Name": "kdm-AMI-4",
+                "Release": "Latest",
+                "OS_Version": "Redhat",
+                "Project": "CDS",
+                "BillingID": "CDS",
+                "Service": "CDS",
+                "Approved": "HMRC_Approved_Image"
+            }
+        }
+    ],
+    "provisioners": [
+        {
+        "type": "ansible",
+        "command": "./cluster/call_ansible.sh",
+        "user": "ec2-user",
+        "inventory_directory": "./inventory",
+        "playbook_file": "./cluster/ami-build.yaml",
+        "ansible_env_vars": [ "ANSIBLE_CONFIG=ansible.cfg" ],
+        "extra_arguments" : []
+        }
+    ]
+}
